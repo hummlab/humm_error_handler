@@ -10,6 +10,7 @@ A Flutter library for comprehensive error handling, tracking, and reporting acro
 - ✅ Integration with Fimber for advanced logging capabilities
 - ✅ Zone errors and Flutter errors handling
 - ✅ Easily extendable with custom trackers (e.g., Crashlytics, Sentry)
+- ✅ User-facing error display with customizable messages
 
 ## Usage
 
@@ -18,26 +19,41 @@ A Flutter library for comprehensive error handling, tracking, and reporting acro
 ```dart
 import 'package:flutter/material.dart';
 import 'package:humm_error_handler/humm_error_handler.dart';
+import 'package:fimber/fimber.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // Simple initialization with default options
-  await HummErrorHandler.setupErrorHandling(
-    appRunner: () => runApp(MyApp()),
-    trackers: [FimberTracker()],
+void main() {
+  // Setup basic logging
+  Fimber.plantTree(DebugTree());
+
+  runZonedGuarded<Future<void>>(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+      
+      // Initialize error handler
+      await HummErrorHandler.setup(
+        trackers: [FimberTracker()],
+        errorDisplayCallback: (String message, {Map<String, dynamic>? additionalData}) {
+          // Show a toast, dialog, snackbar, etc.
+          showToast(message);
+        },
+      );
+      
+      runApp(MyApp());
+    },
+    (Object error, StackTrace stack) async {
+      // Delegate zone error handling to HummErrorHandler
+      HummErrorHandler().handleError(error, stack, source: 'Zone');
+    },
   );
 }
 ```
 
-## User-Facing Error Display
+### Error Display and Translation
 
-You can easily add user-friendly error messages by providing a display callback:
+You can easily add user-friendly error messages by providing display and translation callbacks:
 
 ```dart
-// Initialize with error display capabilities
-await HummErrorHandler.setupErrorHandling(
-  appRunner: () => runApp(MyApp()),
+await HummErrorHandler.setup(
   trackers: [FimberTracker()],
   
   // This will be called when errors occur
@@ -49,8 +65,8 @@ await HummErrorHandler.setupErrorHandling(
   // Custom error translation
   errorTranslationCallback: (error, stackTrace, source) {
     // Translate specific errors to user-friendly messages
-    if (error.toString().contains('permission')) {
-      return 'You don\'t have permission to perform this action';
+    if (error is FirebaseFunctionsException) {
+      return translateFirebaseError(error.message);
     }
     
     // Return null to use default error message
@@ -87,45 +103,66 @@ errorHandler.setShouldDisplayErrorCallback((error, stackTrace) {
   return isCriticalError(error);
 });
 ```
-- ✅ Integration with Fimber for advanced logging capabilities
-- ✅ User-facing error display with customizable messages
 
-### Advanced Setup
+### Integration with Firebase and runZonedGuarded
+
+Here's a complete example showing how to integrate with Firebase in a Flutter app:
 
 ```dart
-import 'package:flutter/material.dart';
-import 'package:humm_error_handler/humm_error_handler.dart';
+void main() {
+  // Setup basic logging
+  Fimber.plantTree(DebugTree());
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  final errorHandler = HummErrorHandler();
-  await errorHandler.init(
-    storageKey: 'my_custom_errors_key', // Custom key for SharedPreferences
-    trackers: [
-      FimberTracker(
-        logLevel: LogLevel.E,
-        includeAdditionalData: true,
-      ),
-      // Add more trackers as needed
-    ],
-  );
-  
-  // Configure Flutter error handling
-  FlutterError.onError = (FlutterErrorDetails details) {
-    errorHandler.handleError(
-      details.exception,
-      details.stack ?? StackTrace.empty,
-      source: 'Flutter',
-    );
-  };
-  
-  // Run the app with Zone error handling
-  runZonedGuarded(
-    () => runApp(MyApp()),
-    (error, stackTrace) {
-      errorHandler.handleError(error, stackTrace, source: 'Zone');
+  runZonedGuarded<Future<void>>(
+    () async {
+      // Flutter initialization
+      WidgetsFlutterBinding.ensureInitialized();
+      
+      // Initialize all app resources
+      await _initializeApp();
+      
+      // Run the app
+      final FirebaseAnalyticsObserver observer = FirebaseAnalyticsObserver(
+        analytics: FirebaseAnalytics.instance
+      );
+      runApp(MyApp(observer: observer));
     },
+    (Object error, StackTrace stack) async {
+      // Use HummErrorHandler to handle Zone errors
+      HummErrorHandler().handleError(error, stack, source: 'Zone');
+    },
+  );
+}
+
+Future<void> _initializeApp() async {
+  // Setup Firebase
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
+  // Setup other resources
+  // ...
+  
+  // Initialize HummErrorHandler with trackers
+  final bool crashlogAgreement = await getUserAgreement() ?? false;
+  
+  await HummErrorHandler.setup(
+    trackers: <HummErrorTracker>[
+      FimberTracker(),
+      CrashlyticsTracker(
+        crashlytics: FirebaseCrashlytics.instance,
+        crashlogAgreement: crashlogAgreement,
+        shouldReportToCrashlytics: !isDevEnvironment || crashlogAgreement,
+      ),
+    ],
+    errorDisplayCallback: (String message, {Map<String, dynamic>? additionalData}) {
+      showErrorMessage(message);
+    },
+    errorTranslationCallback: (error, stackTrace, source) {
+      if (error is FirebaseFunctionsException) {
+        return translateFirebaseError(error.message);
+      }
+      return null;
+    },
+    defaultErrorMessage: 'Something went wrong',
   );
 }
 ```
@@ -154,28 +191,22 @@ void someFunction() {
 
 ## Adding Custom Trackers
 
-### Firebase Crashlytics
+### Firebase Crashlytics Tracker Example
 
-First, add Firebase Crashlytics to your project:
-
-```yaml
-dependencies:
-  firebase_core: ^2.8.0
-  firebase_crashlytics: ^3.0.16
-```
-
-Then create a Crashlytics tracker:
+Create a Crashlytics tracker that respects user preferences:
 
 ```dart
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
-import 'package:humm_error_handler/humm_error_handler.dart';
-
 class CrashlyticsTracker implements HummErrorTracker {
+  CrashlyticsTracker({
+    FirebaseCrashlytics? crashlytics,
+    required this.crashlogAgreement,
+    required this.shouldReportToCrashlytics,
+  }) : _crashlytics = crashlytics ?? FirebaseCrashlytics.instance;
+
   final FirebaseCrashlytics _crashlytics;
-  
-  CrashlyticsTracker({FirebaseCrashlytics? crashlytics}) 
-      : _crashlytics = crashlytics ?? FirebaseCrashlytics.instance;
-  
+  final bool crashlogAgreement;
+  final bool shouldReportToCrashlytics;
+
   @override
   Future<void> trackError({
     required dynamic error,
@@ -183,165 +214,98 @@ class CrashlyticsTracker implements HummErrorTracker {
     String? source,
     Map<String, dynamic>? additionalData,
   }) async {
-    // Add custom keys if additional data exists
+    // Add additional data as custom keys
     if (additionalData != null && additionalData.isNotEmpty) {
-      for (final entry in additionalData.entries) {
+      for (final MapEntry<String, dynamic> entry in additionalData.entries) {
         await _crashlytics.setCustomKey(entry.key, entry.value.toString());
       }
     }
-    
+
     // Add source as a custom key
     if (source != null) {
       await _crashlytics.setCustomKey('error_source', source);
     }
-    
+
     // Record error to Crashlytics
     await _crashlytics.recordError(
       error,
       stackTrace,
       reason: 'Error from ${source ?? 'unknown'}',
-      fatal: false,
+      fatal: true,
     );
+
+    // Add a log
+    await _crashlytics.log('Error: $error');
+  }
+
+  @override
+  bool shouldHandleCrashlog() {
+    // Only report to Crashlytics if:
+    // 1. User has given consent or we're in production
+    // 2. Reporting hasn't been explicitly disabled
+    return shouldReportToCrashlytics;
   }
 }
 ```
 
-And use it in your app:
+## Migration from runZonedGuarded Direct Implementation
 
+If you're migrating from a direct implementation of `runZonedGuarded` to using the `humm_error_handler` library, follow these steps:
+
+1. Keep your `runZonedGuarded` block, but update the error handler to use `HummErrorHandler().handleError`
+2. Move your app initialization to a separate method for clarity
+3. Configure `HummErrorHandler` with appropriate trackers
+
+### Before:
 ```dart
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  runZonedGuarded<Future<void>>(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+      // ... app initialization
+      runApp(MyApp());
+    },
+    (Object error, StackTrace stack) async => handleError(error, stack),
+  );
+}
+```
+
+### After:
+```dart
+void main() {
+  // Basic logging setup
+  Fimber.plantTree(DebugTree());
+
+  runZonedGuarded<Future<void>>(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+      
+      // Initialize app resources
+      await _initializeApp();
+      
+      // Run the app
+      runApp(MyApp());
+    },
+    (Object error, StackTrace stack) async {
+      // Use HummErrorHandler
+      HummErrorHandler().handleError(error, stack, source: 'Zone');
+    },
+  );
+}
+
+Future<void> _initializeApp() async {
+  // App initialization
+  // ...
   
-  // Plant a Fimber tree first (required for Fimber to work)
-  if (kDebugMode) {
-    Fimber.plantTree(DebugTree());
-  }
-  
-  await HummErrorHandler.setupErrorHandling(
-    appRunner: () => runApp(MyApp()),
+  // Configure HummErrorHandler
+  await HummErrorHandler.setup(
     trackers: [
       FimberTracker(),
       CrashlyticsTracker(),
+      // Other trackers
     ],
+    // ...
   );
-}
-```
-
-### Sentry
-
-First, add Sentry to your project:
-
-```yaml
-dependencies:
-  sentry: ^7.1.0
-```
-
-Then create a Sentry tracker:
-
-```dart
-import 'package:sentry/sentry.dart';
-import 'package:humm_error_handler/humm_error_handler.dart';
-
-class SentryTracker implements HummErrorTracker {
-  SentryTracker();
-  
-  @override
-  Future<void> trackError({
-    required dynamic error,
-    required StackTrace stackTrace,
-    String? source,
-    Map<String, dynamic>? additionalData,
-  }) async {
-    // Prepare additional context
-    final Map<String, dynamic> context = {};
-    
-    // Add custom data if it exists
-    if (additionalData != null && additionalData.isNotEmpty) {
-      context.addAll(additionalData);
-    }
-    
-    // Add source as part of context
-    if (source != null) {
-      context['error_source'] = source;
-    }
-    
-    // Create scope with additional information
-    final scope = Scope();
-    scope.setContexts('error_context', context);
-    
-    // Send event to Sentry
-    await Sentry.captureException(
-      error,
-      stackTrace: stackTrace,
-      hint: source != null ? {'source': source} : null,
-    );
-  }
-}
-```
-
-And use it in your app:
-
-```dart
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize Sentry
-  await Sentry.init(
-    (options) {
-      options.dsn = 'YOUR_SENTRY_DSN';
-      options.tracesSampleRate = 1.0;
-    },
-    appRunner: () {}, // Empty because we'll use our own error handler
-  );
-  
-  // Plant a Fimber tree
-  if (kDebugMode) {
-    Fimber.plantTree(DebugTree());
-  }
-  
-  await HummErrorHandler.setupErrorHandling(
-    appRunner: () => runApp(MyApp()),
-    trackers: [
-      FimberTracker(),
-      SentryTracker(),
-    ],
-  );
-}
-```
-
-## Custom Storage Implementation
-
-You can create your own storage implementation by extending `HummErrorStorage`:
-
-```dart
-import 'package:humm_error_handler/humm_error_handler.dart';
-import 'package:path_provider/path_provider.dart';
-import 'dart:io';
-
-class FileErrorStorage extends HummErrorStorage {
-  FileErrorStorage({required super.storageKey});
-  
-  Future<File> get _logFile async {
-    final directory = await getApplicationDocumentsDirectory();
-    final path = directory.path;
-    return File('$path/$storageKey.log');
-  }
-  
-  @override
-  Future<String?> getErrorLog() async {
-    final file = await _logFile;
-    if (await file.exists()) {
-      return await file.readAsString();
-    }
-    return '';
-  }
-  
-  @override
-  Future<void> saveErrorLog(String content) async {
-    final file = await _logFile;
-    await file.writeAsString(content);
-  }
 }
 ```
 
