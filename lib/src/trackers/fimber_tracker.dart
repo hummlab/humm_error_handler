@@ -65,6 +65,11 @@ class FimberTracker implements HummErrorTracker {
         break;
     }
   }
+
+  @override
+  bool shouldHandleCrashlog() {
+    return true;
+  }
 }
 
 /// Log levels for the FimberTracker

@@ -5,4 +5,6 @@ abstract class HummErrorTracker {
     String? source,
     Map<String, dynamic>? additionalData,
   });
+
+  bool shouldHandleCrashlog();
 }
