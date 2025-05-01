@@ -8,7 +8,7 @@ environment:
   flutter: ">=1.17.0"
 
 dependencies:
-  fimber: ^0.7.0
+  fimber: ">=0.6.0 <0.8.0"      
   flutter:
     sdk: flutter
   shared_preferences: ">=2.0.0 <3.0.0"
