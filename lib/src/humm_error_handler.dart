@@ -15,7 +15,7 @@ typedef ErrorDisplayCallback = void Function(
 
 /// A callback type for handling error translation
 typedef ErrorTranslationCallback = String? Function(
-  dynamic error, 
+  dynamic error,
   StackTrace stackTrace,
   String? source,
 );
@@ -24,16 +24,16 @@ class HummErrorHandler {
   late HummErrorStorage errorStorage;
   final List<HummErrorTracker> _trackers = [];
   int logSize = 500000; // Default log size
-  
+
   /// Callback for displaying error messages to users
   ErrorDisplayCallback? _errorDisplayCallback;
-  
+
   /// Callback for translating errors into user-friendly messages
   ErrorTranslationCallback? _errorTranslationCallback;
-  
+
   /// Callback for determining if an error should be displayed to users
   bool Function(dynamic error, StackTrace stackTrace)? _shouldDisplayErrorCallback;
-  
+
   /// Default error message when translation fails
   String _defaultErrorMessage = 'An error occurred';
 
@@ -55,7 +55,7 @@ class HummErrorHandler {
     String? defaultErrorMessage,
   }) async {
     this.errorStorage = errorStorage ?? await HummErrorStorageImpl.create(storageKey: storageKey ?? StorageKey.key);
-    
+
     // Set log size if provided
     if (logSize != null) {
       this.logSize = logSize;
@@ -64,11 +64,11 @@ class HummErrorHandler {
     if (trackers != null && trackers.isNotEmpty) {
       _trackers.addAll(trackers);
     }
-    
+
     _errorDisplayCallback = errorDisplayCallback;
     _errorTranslationCallback = errorTranslationCallback;
     _shouldDisplayErrorCallback = shouldDisplayErrorCallback;
-    
+
     if (defaultErrorMessage != null) {
       _defaultErrorMessage = defaultErrorMessage;
     }
@@ -80,7 +80,7 @@ class HummErrorHandler {
       handleError(
         details.exception,
         details.stack ?? StackTrace.empty,
-        source: 'Flutter'
+        source: 'Flutter',
       );
     };
   }
@@ -88,12 +88,11 @@ class HummErrorHandler {
   /// Configure a Zone for handling uncaught asynchronous errors
   ZoneSpecification createZoneSpecification() {
     return ZoneSpecification(
-      handleUncaughtError: (Zone self, ZoneDelegate parent, Zone zone, Object error, StackTrace stackTrace) {
-        handleError(error, stackTrace, source: 'Zone');
-        // Allow normal Zone processing too
-        parent.handleUncaughtError(zone, error, stackTrace);
-      }
-    );
+        handleUncaughtError: (Zone self, ZoneDelegate parent, Zone zone, Object error, StackTrace stackTrace) {
+      handleError(error, stackTrace, source: 'Zone');
+      // Allow normal Zone processing too
+      parent.handleUncaughtError(zone, error, stackTrace);
+    });
   }
 
   /// Run the app in a Zone that catches errors.
@@ -103,10 +102,10 @@ class HummErrorHandler {
     List<NavigatorObserver>? navigatorObservers,
   }) {
     final handler = HummErrorHandler();
-    
+
     // Set up Flutter error handling
     handler.setupFlutterErrorHandling();
-    
+
     // Just run the app - we'll let the caller decide if they want to use runZonedGuarded
     runApp(app);
   }
@@ -115,17 +114,17 @@ class HummErrorHandler {
   void setErrorDisplayCallback(ErrorDisplayCallback callback) {
     _errorDisplayCallback = callback;
   }
-  
+
   /// Set or update the callback for translating errors
   void setErrorTranslationCallback(ErrorTranslationCallback callback) {
     _errorTranslationCallback = callback;
   }
-  
+
   /// Set or update the default error message
   void setDefaultErrorMessage(String message) {
     _defaultErrorMessage = message;
   }
-  
+
   /// Set the callback that determines if an error should be displayed
   void setShouldDisplayErrorCallback(bool Function(dynamic error, StackTrace stackTrace) callback) {
     _shouldDisplayErrorCallback = callback;
@@ -147,30 +146,31 @@ class HummErrorHandler {
 
     // Send to trackers
     for (final tracker in _trackers) {
-      await tracker.trackError(
-        error: error,
-        stackTrace: stackTrace,
-        source: source,
-        additionalData: additionalData,
-      );
+      if (tracker.shouldHandleCrashlog()) {
+        await tracker.trackError(
+          error: error,
+          stackTrace: stackTrace,
+          source: source,
+          additionalData: additionalData,
+        );
+      }
     }
-    
+
     // Determine if we should display the error to the user
-    final bool shouldDisplay = displayToUser && 
-        (_shouldDisplayErrorCallback?.call(error, stackTrace) ?? true);
-    
+    final bool shouldDisplay = displayToUser && (_shouldDisplayErrorCallback?.call(error, stackTrace) ?? true);
+
     // Display the error to the user if needed
     if (shouldDisplay && _errorDisplayCallback != null) {
       String? errorMessage;
-      
+
       // Try to translate the error
       if (_errorTranslationCallback != null) {
         errorMessage = _errorTranslationCallback!(error, stackTrace, source);
       }
-      
+
       // Use default error message if translation failed
       errorMessage ??= _defaultErrorMessage;
-      
+
       // Display the error
       _errorDisplayCallback!(errorMessage, additionalData: additionalData);
     }
