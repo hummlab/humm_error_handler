@@ -86,7 +86,8 @@ errorHandler.setShouldDisplayErrorCallback((error, stackTrace) {
   // Only show critical errors to users
   return isCriticalError(error);
 });
-```- ✅ Integration with Fimber for advanced logging capabilities
+```
+- ✅ Integration with Fimber for advanced logging capabilities
 - ✅ User-facing error display with customizable messages
 
 ### Advanced Setup
