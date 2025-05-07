@@ -19,7 +19,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  humm_error_handler: ^1.0.0
+  humm_error_handler: ^0.2.0
 ```
 
 ## Usage
