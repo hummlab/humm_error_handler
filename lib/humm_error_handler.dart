@@ -13,3 +13,6 @@ export 'src/trackers/fimber_tracker.dart';
 
 // Consts
 export 'src/consts/storage_key.dart';
+
+//
+export 'src/crashlog_screen/humm_crashlog_screen.dart';

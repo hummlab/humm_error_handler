@@ -11,6 +11,16 @@ A Flutter library for comprehensive error handling, tracking, and reporting acro
 - ✅ Zone errors and Flutter errors handling
 - ✅ Easily extendable with custom trackers (e.g., Crashlytics, Sentry)
 - ✅ User-facing error display with customizable messages
+- ✅ Built-in error log viewer UI
+
+## Installation
+
+Add this to your package's `pubspec.yaml` file:
+
+```yaml
+dependencies:
+  humm_error_handler: ^1.0.0
+```
 
 ## Usage
 

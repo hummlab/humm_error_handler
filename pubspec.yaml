@@ -1,7 +1,7 @@
 name: humm_error_handler
-description: "A new Flutter package project."
-version: 1.0.0
-homepage:
+description: "A comprehensive Flutter error handling library that provides centralized error tracking, logging, storage and display capabilities."
+version: 0.1.0
+homepage: https://github.com/hummlab/humm_error_handler
 
 environment:
   sdk: ^3.5.3
