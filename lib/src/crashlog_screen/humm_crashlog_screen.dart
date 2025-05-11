@@ -9,6 +9,7 @@ class HummCrashlogScreen extends StatefulWidget {
   final Color? primaryColor;
   final Color? secondaryColor;
   final Color? scaffoldBackgroundColor;
+  final Color textColor;
   final Duration snackBarDuration;
 
   const HummCrashlogScreen._({
@@ -16,6 +17,7 @@ class HummCrashlogScreen extends StatefulWidget {
     this.secondaryColor,
     this.scaffoldBackgroundColor,
     this.snackBarDuration = const Duration(seconds: 2),
+    this.textColor = Colors.white,
   });
 
   @override
@@ -64,7 +66,10 @@ class _HummCrashlogScreenState extends State<HummCrashlogScreen> {
     return Scaffold(
       backgroundColor: scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Crashlogs'),
+        title: Text(
+          'Crashlogs',
+          style: TextStyle(color: widget.textColor),
+        ),
         backgroundColor: primaryColor,
         foregroundColor: secondaryColor,
         actions: [
@@ -96,7 +101,10 @@ class _HummCrashlogScreenState extends State<HummCrashlogScreen> {
                         Platform.isIOS ? CupertinoTextSelectionControls() : MaterialTextSelectionControls(),
                     child: Column(
                       children: [
-                        Text(crashlogTxt),
+                        Text(
+                          crashlogTxt,
+                          style: TextStyle(color: widget.textColor),
+                        ),
                       ],
                     ),
                   ),
@@ -111,7 +119,10 @@ class _HummCrashlogScreenState extends State<HummCrashlogScreen> {
               child: FloatingActionButton.extended(
                 heroTag: 'clear',
                 onPressed: _clearLogs,
-                label: const Text('Clear logs'),
+                label: Text(
+                  'Clear logs',
+                  style: TextStyle(color: widget.textColor),
+                ),
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
               ),
@@ -122,7 +133,10 @@ class _HummCrashlogScreenState extends State<HummCrashlogScreen> {
               child: FloatingActionButton.extended(
                 heroTag: 'copy',
                 onPressed: _copyLogs,
-                label: const Text('Copy logs'),
+                label: Text(
+                  'Copy logs',
+                  style: TextStyle(color: widget.textColor),
+                ),
                 backgroundColor: primaryColor,
                 foregroundColor: secondaryColor,
               ),
